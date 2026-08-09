@@ -1,86 +1,199 @@
 # AdPilot Agent
 
-面向跨境电商卖家和投流运营人员的广告投流 Agent Copilot。
+AdPilot Agent 是一个面向跨境电商卖家和广告投放运营人员的 AI 投放分析 Copilot。用户输入商品、卖点、市场、平台、预算和投放目标后，系统会依次完成受众洞察、素材方向、媒体计划和优化建议，最后将四部分内容组合成一份可阅读、可复制的投放建议。
 
-这是 **Round 3** 的交付成果，一个功能更完善、用户体验更佳的 Agent Demo。
+它适合作为广告策略 Agent 的产品原型、交互演示和工程架构示例，不是可以直接替代广告平台开户、实时数据分析或自动投放的生产系统。
 
-## 功能
+## 核心流程
 
-- **信息输入**: 用户可以输入商品名称、卖点、目标市场、投放平台、日预算和核心目标。
-- **前端校验**: 对输入字段进行基本校验，确保数据有效性。
-- **示例数据**: 提供一键填充示例数据的按钮，方便快速演示。
-- **智能分析**: 
-  - **Live 模式**: 当配置了 `OPENAI_API_KEY` 时，系统会真实调用大语言模型，经过 `Orchestrator -> ToolRouter -> 4个Tool` 的完整链路，生成高质量的分析建议。
-  - **Fallback 模式**: 未配置 API Key 时，自动降级为使用预设文案的 fallback 模式，保证核心流程可用。
-- **Agent 步骤**: 实时展示 Agent 从解析需求到调用各个工具的完整执行步骤。
-- **分析结果展示**: 以卡片形式清晰展示四项分析结果，并支持内容复制。
-- **历史记录**: 用户的输入和分析结果（最近 5 次）都会保存在浏览器的 `localStorage` 中，刷新页面不会丢失，并支持点击回填。
-- **用户反馈**: 对分析结果提供“有帮助”或“需要优化”的反馈机制，并持久化反馈状态。
-- **UI/UX 优化**: 页面层级更清晰，卡片标题更专业，Agent 步骤区、mode 标识、空状态/错误状态视觉效果更佳。
+```text
+商品与投放信息
+      ↓
+Agent Orchestrator
+      ↓
+Audience Insight Tool
+      ↓
+Creative Angle Tool
+      ↓
+Media Plan Tool
+      ↓
+Optimization Tool
+      ↓
+分析报告 + 执行步骤 + 模式标识
+```
 
-## 技术栈
+四个工具按照固定顺序运行，后续工具可以使用前面步骤产生的上下文：
 
-- Next.js 14 (App Router)
-- React
-- Tailwind CSS
+1. **Audience Insight Tool**：分析目标人群、痛点、购买动机和沟通切入点。
+2. **Creative Angle Tool**：根据受众洞察生成广告创意方向和文案钩子。
+3. **Media Plan Tool**：给出预算分配、测试节奏和投放结构建议。
+4. **Optimization Tool**：整理关键指标、问题排查方向和后续优化动作。
+
+## 两种运行模式
+
+### Live 模式
+
+配置 `OPENAI_API_KEY` 后，服务端会通过 OpenAI SDK 调用模型。默认模型是 `gpt-4.1-mini`，可以使用 `OPENAI_MODEL` 修改。
+
+每一个工具都有独立的提示词和调用逻辑。界面显示的 Agent 步骤来自服务端实际执行过程，而不是预先播放的动画。
+
+### Fallback 模式
+
+没有配置 Key 时，应用会自动使用本地 fallback 结果，方便在无外部服务的环境中演示完整交互流程。
+
+如果已经进入 Live 模式，但某个工具调用失败，该工具会返回备用内容，整个流程不会因此中断；响应中的 `mode` 会降级为 `fallback`。
+
+Fallback 内容是预设规则和文案，不代表模型完成了真实分析。
+
+## 用户可以做什么
+
+- 输入商品名称、核心卖点、目标市场、广告平台、日预算和核心目标；
+- 使用示例数据快速体验完整流程；
+- 查看 Agent 当前执行到哪个工具；
+- 阅读并复制四类分析结果；
+- 回看最近 5 次分析，并将历史输入重新填入表单；
+- 对结果标记“有帮助”或“需要优化”；
+- 刷新页面后继续使用保存在本机的历史记录和上次输入。
+
+历史记录、表单草稿和反馈存放在浏览器 `localStorage` 中。项目目前没有数据库，也不会把这些历史同步到其他设备。
+
+## API
+
+应用提供一个 Next.js Route Handler：
+
+```text
+POST /api/analyze
+```
+
+请求示例：
+
+```json
+{
+  "productName": "便携式咖啡机",
+  "sellingPoints": "无需插电、体积小、适合旅行",
+  "market": "美国",
+  "platform": "Meta",
+  "dailyBudget": "100",
+  "goal": "转化"
+}
+```
+
+返回结构包含：
+
+```json
+{
+  "audienceInsight": "...",
+  "creativeAngle": "...",
+  "mediaPlan": "...",
+  "optimizationAdvice": "...",
+  "agentSteps": ["..."],
+  "mode": "live"
+}
+```
+
+接口会检查六个必填字段。字段缺失时返回 `400`；无法处理的服务端异常返回 `500`。
+
+## 技术架构
+
+- Next.js 14（App Router）
+- React 18
 - TypeScript
-- **OpenAI SDK**: 用于与大语言模型交互。
-- **Agent-based Architecture**: 包含 Orchestrator, Tool Router, 和多个独立 Tools。
+- Tailwind CSS
+- OpenAI JavaScript SDK
+- 浏览器 `localStorage`
 
-## 如何本地运行
+主要目录：
 
-1.  **环境要求**:
-    - Node.js (v18.17 或更高版本)
-    - pnpm
+```text
+adpilot-agent/
+├── app/
+│   ├── page.tsx                    # 主页面状态与分析请求
+│   └── api/analyze/route.ts        # 分析 API 与输入校验
+├── components/                     # 表单、步骤、结果、历史和反馈组件
+├── lib/
+│   ├── agent/orchestrator.ts       # Agent 上下文初始化与总流程编排
+│   ├── agent/toolRouter.ts         # 四个工具的顺序调度与降级处理
+│   ├── tools/                      # 各分析工具及其 fallback 逻辑
+│   ├── services/llm.ts             # OpenAI 客户端和统一模型调用
+│   ├── history.ts                  # 本地历史与反馈持久化
+│   └── types.ts                    # 请求、响应和 Agent 类型
+├── docs/                            # 项目状态、文件地图和历史开发记录
+└── .env.example                     # 环境变量示例
+```
 
-2.  **配置环境变量**:
-    将项目根目录下的 `.env.example` 文件复制一份，重命名为 `.env.local`，然后填入你的 OpenAI API Key。
-    ```bash
-    cp .env.example .env.local
-    ```
-    编辑 `.env.local`:
-    ```
-    OPENAI_API_KEY=sk-...
-    ```
-    *如果留空，项目将以 fallback 模式运行。*
+## 本地运行
 
-3.  **安装依赖**:
-    在项目根目录下运行：
-    ```bash
-    pnpm install
-    ```
+### 环境要求
 
-4.  **启动开发服务**:
-    ```bash
-    pnpm run dev
-    ```
+- Node.js 18.17 或更高版本
+- pnpm
 
-5.  **访问应用**:
-    打开浏览器并访问 [http://localhost:3000](http://localhost:3000)。
+### 安装
 
-## 跨账号续作说明（非常重要）
+```bash
+pnpm install
+```
 
-为了确保项目可以在不同的 Manus 会话或账号中无缝继续开发，本项目内置了“可迁移续作机制”。
+### 配置环境变量
 
-### 1. 优先阅读文档
+```bash
+cp .env.example .env.local
+```
 
-在开始编码前，请务必仔细阅读以下文件，它们包含了继续开发所需的全部上下文：
-- `README.md` (本文件): 了解项目概览、如何运行。
-- `docs/PROJECT_STATE.md`: 获取项目在上一轮结束时的完整状态，包括文件结构、API 定义、已完成和未完成的功能等。
-- `docs/NEXT_STEPS.md`: 查看下一轮（Round 4）的详细开发计划和任务列表。
-- `docs/CHANGELOG.md`: 查看项目版本变更历史。
-- `docs/HANDOFF.md`: 获取快速上手指南和低积分保护策略。
-- `docs/FILE_MAP.md`: 核心文件功能速查。
+`.env.local` 示例：
 
-### 2. 跨账号续作检查清单
+```dotenv
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4.1-mini
+```
 
-在新账号或新环境中继续开发前，请务必检查以下事项：
+`OPENAI_API_KEY` 留空时会进入 Fallback 模式。不要把 `.env.local` 或真实密钥提交到仓库。
 
-- [x] **依赖安装**: 在项目根目录运行 `pnpm install` 确保所有依赖已安装。
-- [x] **环境变量**: 确认根目录存在 `.env.local` 文件，并已正确配置 `OPENAI_API_KEY`。
-- [x] **文档同步**: 确认 `docs` 目录下的所有文档（`PROJECT_STATE.md`, `NEXT_STEPS.md`, `CHANGELOG.md`, `HANDOFF.md`, `FILE_MAP.md`）已同步到最新版本。
-- [x] **运行测试**: 运行 `pnpm run dev`，并尝试提交一次分析请求，确认 `live` 或 `fallback` 模式至少有一种能正常工作。
+### 启动开发服务
 
-### 3. 遵循开发计划
+```bash
+pnpm dev
+```
 
-根据 `docs/NEXT_STEPS.md` 中的任务列表，逐项完成 Round 4 的开发目标。
+打开：
+
+```text
+http://localhost:3000
+```
+
+### 构建与运行生产版本
+
+```bash
+pnpm build
+pnpm start
+```
+
+## 当前能力边界
+
+这个版本验证的是“结构化输入 → 多工具顺序分析 → 可解释结果展示”的产品链路。它目前不具备：
+
+- Meta、TikTok、Google Ads 等广告平台的账号授权；
+- 广告账户、Campaign、素材和转化数据的实时读取；
+- 自动创建或修改广告计划；
+- 基于历史表现的持续学习和归因分析；
+- 用户账号、团队空间、数据库和跨设备同步；
+- 流式模型输出；
+- 对模型输出的严格 JSON Schema 约束；
+- 生产级限流、计费、内容审核、可观测性和自动化测试覆盖。
+
+因此，生成结果应被视为策略草案。涉及真实预算和投放决策时，仍需要运营人员结合平台数据、品牌约束和市场情况复核。
+
+## 隐私与安全
+
+- OpenAI Key 只应配置在服务端环境变量中，不应写入前端代码。
+- Live 模式会将用户填写的商品和投放信息发送给所配置的模型服务。
+- 浏览器会在本机保存最近 5 条分析历史；共用设备上使用时请注意本地数据暴露风险。
+- 当前接口没有登录和访问控制。公开部署前应增加鉴权、限流和调用额度保护。
+
+## 项目文档
+
+`docs/` 保留了开发过程中的项目状态、文件地图、变更记录和后续计划。这些文件适合继续开发时参考；本 README 是面向仓库访客的功能与运行说明。
+
+## 说明
+
+本仓库未声明开源许可证。在获得明确授权前，请不要将代码视为可自由再分发或商用的开源内容。
